@@ -51,7 +51,7 @@ exports.getAllUsers = async (req, res) => {
 exports.getUserById = async (req, res) => {
   try {
     const userId = req.params.id;
-
+    console.log("userId is : ", userId);
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -60,8 +60,11 @@ exports.getUserById = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-
-    if (req.user.role !== "admin" && req.user._id.toString() !== userId) {
+    console.log("Req.user.role is ", req.user);
+    if (
+      req.user.role !== "admin" &&
+      req.user.id.toString() !== userId.toString()
+    ) {
       return res.status(403).json({ message: "Unauthorized access" });
     }
 
@@ -75,18 +78,31 @@ exports.getUserById = async (req, res) => {
 exports.createUser = async (req, res) => {
   try {
     if (!req.body || Object.keys(req.body).length === 0) {
-      logger.warn("Empty payload received on /register");
       return res.status(400).json({ message: "Payload is required" });
     }
-    const { name, email, password, phoneNumber, address } = req.body;
+
+    const { name, email, password, phoneNumber, address, role } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
     const existingUser = await User.findOne({ email });
-    if (existingUser)
+    if (existingUser) {
       return res.status(400).json({ message: "Email already in use" });
+    }
+
+    // Only allow setting role to 'admin' if the current user is admin
+    let finalRole = "user"; // default
+    if (role === "admin") {
+      if (req.user?.role === "admin") {
+        finalRole = "admin";
+      } else {
+        return res
+          .status(403)
+          .json({ message: "Not authorized to assign admin role" });
+      }
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -96,12 +112,14 @@ exports.createUser = async (req, res) => {
       password: hashedPassword,
       phoneNumber,
       address,
+      role: finalRole,
     });
 
     res
       .status(201)
       .json({ message: "User created successfully", user: newUser });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -112,11 +130,15 @@ exports.updateUser = async (req, res) => {
     const userId = req.params.id;
 
     if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(404).json({ message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     if (req.user.role !== "admin" && req.user._id.toString() !== userId) {
-      return res.status(403).json({ message: "Unauthorized access" });
+      return res
+        .status(403)
+        .json({ success: false, message: "Unauthorized access" });
     }
 
     const updateData = { ...req.body };
@@ -130,12 +152,18 @@ exports.updateUser = async (req, res) => {
     }).select("-password");
 
     if (!updatedUser) {
-      return res.status(404).json({ message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
-    res.json({ message: "User updated successfully", user: updatedUser });
+    res.json({
+      success: true,
+      message: "User updated successfully",
+      user: updatedUser,
+    });
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
@@ -145,25 +173,31 @@ exports.deleteUser = async (req, res) => {
     const userId = req.params.id;
 
     if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(404).json({ message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     if (req.user.role !== "admin" && req.user._id.toString() !== userId) {
       return res
         .status(403)
-        .json({ message: "Unauthorized to delete this user" });
+        .json({ success: false, message: "Unauthorized to delete this user" });
     }
 
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     await User.findByIdAndDelete(userId);
 
-    res.status(200).json({ message: "User deleted successfully" });
+    res
+      .status(200)
+      .json({ success: true, message: "User deleted successfully" });
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
@@ -196,12 +230,14 @@ exports.updateProfilePicture = async (req, res) => {
     );
 
     if (!updatedUser) {
+      fs.unlinkSync(path.join(__dirname, "..", imagePath));
       return res.status(404).json({ message: "User not found" });
     }
 
-    res
-      .status(200)
-      .json({ message: "Profile picture updated", data: updatedUser });
+    res.status(200).json({
+      message: "Profile picture updated",
+      data: updatedUser,
+    });
   } catch (err) {
     console.error("Error in updateProfilePicture:", err);
     res.status(500).json({ message: "Internal server error" });

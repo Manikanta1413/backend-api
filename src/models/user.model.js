@@ -1,6 +1,5 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
-const upload = require("../middlewares/upload");
 
 const userSchema = new mongoose.Schema(
   {
@@ -42,7 +41,7 @@ const userSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: ["admin", "user"],
-      default: "user",
+      // default: "user",
     },
   },
   {

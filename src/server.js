@@ -12,8 +12,6 @@ const authRoutes = require("./routes/auth.route");
 const { errorHandler } = require("./middlewares/errorHandler.middleware");
 const upload = require("./middlewares/upload");
 
-const PORT = process.env.PORT || 5000;
-
 dotenv.config();
 
 const app = express();
@@ -25,7 +23,12 @@ const limiter = rateLimit({
 
 // Middlewares
 app.use(helmet());
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -33,22 +36,6 @@ app.use(limiter);
 
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-app.post("/upload", upload.single("file"), (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ message: "No file uploaded." });
-    }
-    res.status(200).json({
-      message: "File uploaded successfully!",
-      file: req.file, // The uploaded file details will be in req.file
-    });
-  } catch (error) {
-    console.error(error);
-    res
-      .status(500)
-      .json({ message: "File upload failed.", error: error.message });
-  }
-});
 // Routes
 app.get("/", (req, res) => {
   res.send("User Management API is running");
@@ -63,21 +50,7 @@ app.use((req, res, next) => {
 // Error Handling
 app.use(errorHandler);
 
-//MongoDB Connection
-// mongoose
-//   .connect(process.env.MONGO_URI)
-//   .then(() => {
-//     if (process.env.NODE_ENV !== "test") {
-//       console.log("MongoDB Connected");
-//       app.listen(process.env.PORT, () =>
-//         console.log(`Server running on port ${process.env.PORT}`)
-//       );
-//     }
-//   })
-//   .catch((err) => {
-//     console.error("Mongo Error:", err);
-//     process.exit(1);
-//   });
+const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   await connectDB();
